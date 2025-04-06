@@ -25,6 +25,9 @@
     <ClInclude Include="pch.h">
       <Filter>inc</Filter>
     </ClInclude>
+    <ClInclude Include="strings.h">
+      <Filter>inc</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json">

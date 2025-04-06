@@ -33,7 +33,7 @@ Print value of EA ea_name on the given file(s):
 xattr -p [-lrvx] ea_name file [ file ... ]
 
 Write the value of the EA ea_name to attr_value:
-xattr -w [-rx] ea_name attr_value file [ file ... ]
+xattr -w [-rx] ea_name ea_value file [ file ... ]
 
 Delete the EA ea_name from file(s):
 xattr -d [-rv] ea_name file [ file ... ]

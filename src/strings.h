@@ -33,3 +33,14 @@ inline std::wstring UTF8ToWide(const std::string_view& utf8Str)
     return wideStr;
 }
 
+inline std::string WideToAscii(const std::wstring_view& wideStr)
+{
+    std::string str;
+    str.reserve(wideStr.size());
+    for (const wchar_t wc : wideStr)
+    {
+        str.push_back(static_cast<char>(wc));
+    }
+    return str;
+}
+

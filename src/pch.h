@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <iterator>
 #include <iostream>
+#include <vector>
+#include <filesystem>
 
 #include "strings.h"
 

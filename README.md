@@ -32,8 +32,8 @@ xattr [-lrvx] file [ file ... ]
 Print value of EA ea_name on the given file(s):
 xattr -p [-lrvx] ea_name file [ file ... ]
 
-Write the value of the EA ea_name to attr_value:
-xattr -w [-rx] ea_name ea_value file [ file ... ]
+Write the value of the EA ea_name to ea_value:
+xattr -w [-rux] ea_name ea_value file [ file ... ]
 
 Delete the EA ea_name from file(s):
 xattr -d [-rv] ea_name file [ file ... ]
@@ -49,6 +49,9 @@ Options:
 
     -h  Help.
 
+    -k  Keep-going. Ignore errors and continue processing the next file. 
+        This is useful when you want to process a list of files and ignore errors on some of them.
+
     -l  By default, the first two command forms either display just the attribute names or
         values, respectively. The -l option causes both the attribute names and corresponding
         values to be displayed. For hex display of values, the output is preceeded with the hex
@@ -59,14 +62,15 @@ Options:
     -r  If a file argument is a directory, act as if the entire contents of the directory
         recursively were also specified (so that every file in the directory tree is acted upon).
 
-    -s  If a file argument is a symbolic link, act on the symbolic link itself, rather than
-        the file that the symbolic link points at.
+    -u  Write value as unicode string (UTF-16LE). The Default is UTF-8. 
+        This option can not be combined with -x.
 
-    -v  Force the file name to be displayed, even for a single file.
+    -v  View the file name, even for a single file.
 
     -w  Write a given attribute name with a value.
 
     -x  Force the attribute value to be displayed in the hexadecimal representation.
+        This option can not be combined with -u.
 
 One or more files or directories may be specified on the command line.
 

@@ -847,7 +847,7 @@ private:
             // Exclude the terminating 0
             for (size_t i = 0; i < bytes.size() - 1; ++i)
             {
-                char c = *(char*)&bytes[i];
+                BYTE c = bytes[i];
                 if (!isprint(c))
                     return true;
             }

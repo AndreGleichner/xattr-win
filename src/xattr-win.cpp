@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "argh.h"
+#include <colorconsole.hpp> // https://github.com/aafulei/color-console
 
 #pragma comment(lib, "ntdll")
 
@@ -32,7 +33,7 @@ STATUS_INSUFFICIENT_RESOURCES   0xC000009A      Insufficient system resources ex
 */
 // clang-format on
 
-
+// Set and restore the console codepage to UTF-8.
 class Codepage
 {
 public:
@@ -54,6 +55,7 @@ private:
     UINT cp_, ocp_;
 };
 
+// Thrown by Program::Exit() to terminate the program with a specific exit code.
 class ExitProgram : public std::exception
 {
 public:
@@ -63,6 +65,7 @@ public:
     }
 };
 
+// Control livetime of the program and cleanup.
 class Program
 {
 public:
@@ -105,7 +108,9 @@ private:
 };
 
 std::unique_ptr<Program> g_pgm;
+bool                     g_debug {false};
 
+// Takes wide argv parameter from wmain() and converts it to UTF-8 argv.
 class WideArgv
 {
 public:
@@ -124,6 +129,7 @@ public:
         }
         argv_.push_back(nullptr);
     }
+    // Give argv as UTF-8
     const char** operator()()
     {
         return &argv_[0];
@@ -137,6 +143,7 @@ private:
 const size_t MAX_EA_VALUE_BYTES = MAXUSHORT;
 const size_t MAX_EA_NAME_LENGTH = 254;
 
+// Semantically parsed commandline parameters.
 struct EaConf
 {
     enum class Cmd
@@ -156,16 +163,28 @@ struct EaConf
         int firstFileIndex = 0;
         // Print value of EA ea_name on the given file(s):
         // xattr -p[-lrvx] ea_name file [ file ... ]
-        if (cmdl[{"-p"}] && cmdl.pos_args().size() >= 2)
+        if (cmdl[{"-p"}])
         {
+            if (cmdl.pos_args().size() < 2)
+            {
+                g_pgm->Exit(1, L"EA name and file(s) are required.");
+                // unreachable
+                return false;
+            }
             Command        = Cmd::Print;
             EaName         = cmdl[0];
             firstFileIndex = 1;
         }
         // Write the value of the EA ea_name to ea_value:
         // xattr -w[-rux] ea_name ea_value file [ file ... ]
-        else if (cmdl[{"-w"}] && cmdl.pos_args().size() >= 3)
+        else if (cmdl[{"-w"}])
         {
+            if (cmdl.pos_args().size() < 3)
+            {
+                g_pgm->Exit(1, L"EA name, value and file(s) are required.");
+                // unreachable
+                return false;
+            }
             Command        = Cmd::Write;
             EaName         = cmdl[0];
             EaValue        = cmdl[1];
@@ -173,16 +192,28 @@ struct EaConf
         }
         // Delete the EA ea_name from file(s):
         // xattr -d[-rv] ea_name file [ file ... ]
-        else if (cmdl[{"-d"}] && cmdl.pos_args().size() >= 2)
+        else if (cmdl[{"-d"}])
         {
+            if (cmdl.pos_args().size() < 2)
+            {
+                g_pgm->Exit(1, L"EA name and file(s) are required.");
+                // unreachable
+                return false;
+            }
             Command        = Cmd::Delete;
             EaName         = cmdl[0];
             firstFileIndex = 1;
         }
         // Clear all EA from the given file(s):
         // xattr -c[-rv] file [ file ... ]
-        else if (cmdl[{"-c"}] && cmdl.pos_args().size() >= 1)
+        else if (cmdl[{"-c"}])
         {
+            if (cmdl.pos_args().size() < 1)
+            {
+                g_pgm->Exit(1, L"File(s) are required.");
+                // unreachable
+                return false;
+            }
             Command = Cmd::Clear;
         }
         // List only the names of all EAs on the given file(s):
@@ -229,12 +260,13 @@ struct EaConf
                     Files.push_back(UTF8ToWide(file));
             }
 
-            Long      = cmdl[{"-p"}];
-            Recursive = cmdl[{"-r"}];
-            ViewFile  = cmdl[{"-v"}];
-            Hex       = cmdl[{"-x"}];
-            Unicode   = cmdl[{"-u"}];
-            KeepGoing = cmdl[{"-k"}];
+            Long          = cmdl[{"-l"}];
+            Recursive     = cmdl[{"-r"}];
+            ViewFile      = cmdl[{"-v"}];
+            Hex           = cmdl[{"-x"}];
+            Unicode       = cmdl[{"-u"}];
+            KeepGoing     = cmdl[{"-k"}];
+            ValueFromFile = cmdl[{"-f"}];
         }
 
         return Command != Cmd::Invalid;
@@ -250,9 +282,56 @@ struct EaConf
     bool                      Hex {false};
     bool                      Unicode {false};
     bool                      KeepGoing {false};
+    bool                      ValueFromFile {false};
     std::vector<std::wstring> Files;
 };
 
+// Dump byte array to stdout in hex and ASCII format.
+static void PrintHex(const std::vector<BYTE>& data, bool leadingNewline)
+{
+    const size_t bytesPerLine = 16;
+
+    if (leadingNewline)
+        std::cout << std::endl;
+
+    for (size_t offset = 0; offset < data.size(); offset += bytesPerLine)
+    {
+        // Offset (4-digit hex, padded)
+        std::cout << std::setw(4) << std::setfill('0') << std::hex << offset << ":  ";
+
+        // First 16 bytes as hex
+        for (size_t i = 0; i < bytesPerLine; ++i)
+        {
+            if (offset + i < data.size())
+                std::cout << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(data[offset + i]) << " ";
+            else
+                std::cout << "   ";
+
+            if (i == 7)
+                std::cout << " ";
+        }
+
+        std::cout << " ";
+
+        // ASCII representation
+        for (size_t i = 0; i < bytesPerLine; ++i)
+        {
+            if (offset + i < data.size())
+            {
+                BYTE ch = data[offset + i];
+                std::cout << (std::isprint(ch) ? static_cast<char>(ch) : '.');
+            }
+            else
+            {
+                std::cout << ' ';
+            }
+        }
+
+        std::cout << std::endl;
+    }
+}
+
+// Wraps any native file operations and represents a file handle.
 class NativeFile
 {
 public:
@@ -276,7 +355,7 @@ public:
         std::vector<BYTE> bytes;
         if (eaConf.Hex)
         {
-            bytes = ParseHexValue(eaConf.EaValue);
+            bytes = ParseHexValue(eaConf.EaValue, MAX_EA_VALUE_BYTES);
             if (bytes.empty() || bytes.size() > MAX_EA_VALUE_BYTES)
                 return false;
         }
@@ -284,6 +363,35 @@ public:
         {
             bytes.resize((eaConf.EaValue.length() + 1) * sizeof(WCHAR));
             std::copy(eaConf.EaValue.begin(), eaConf.EaValue.end(), (WCHAR*)bytes.data());
+        }
+        else if (eaConf.ValueFromFile)
+        {
+            // Read at most MAX_EA_VALUE_BYTES bytes from file whose name is stored in EaValue.
+            auto f = CanonicalPath(UTF8ToWide(eaConf.EaValue));
+
+            HANDLE hFile = CreateFileW(
+                f.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+            if (hFile == INVALID_HANDLE_VALUE)
+                return false;
+
+            LARGE_INTEGER fileSize {};
+            if (!GetFileSizeEx(hFile, &fileSize) || fileSize.QuadPart > MAX_EA_VALUE_BYTES)
+            {
+                CloseHandle(hFile);
+                return false;
+            }
+
+            bytes.resize(fileSize.LowPart);
+            DWORD bytesRead = 0;
+
+            if (!ReadFile(hFile, bytes.data(), fileSize.LowPart, &bytesRead, nullptr) || bytesRead != fileSize.LowPart)
+            {
+                CloseHandle(hFile);
+                return false;
+            }
+
+            CloseHandle(hFile);
         }
         else // as UTF-8
         {
@@ -293,7 +401,6 @@ public:
 
         if (!Open(file, true))
             return false;
-
 
         // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/0eb94f48-6aac-41df-a878-79f4dcfd8989
         // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_full_ea_information
@@ -310,7 +417,16 @@ typedef struct _FILE_FULL_EA_INFORMATION
     // UCHAR EaValue[1]
 } FILE_FULL_EA_INFORMATION, *PFILE_FULL_EA_INFORMATION;
         */
-
+        if (g_debug)
+        {
+            std::cout << hue::yellow << "Prep ZwSetEaFile FILE_FULL_EA_INFORMATION size  "
+                      << sizeof(FILE_FULL_EA_INFORMATION) << std::endl;
+            std::cout << "Prep ZwSetEaFile EaName " << eaConf.EaName << std::endl;
+            std::cout << "Prep ZwSetEaFile EaName len " << eaConf.EaName.length() << std::endl;
+            std::cout << "Prep ZwSetEaFile bytes size " << bytes.size() << std::endl;
+            PrintHex(bytes, false);
+            std::cout << hue::reset;
+        }
         std::vector<BYTE> buffer(sizeof(FILE_FULL_EA_INFORMATION) + eaConf.EaName.length() + bytes.size());
         auto              info = (PFILE_FULL_EA_INFORMATION)buffer.data();
 
@@ -319,10 +435,32 @@ typedef struct _FILE_FULL_EA_INFORMATION
         strcpy_s(info->EaName, eaConf.EaName.length() + 1, eaConf.EaName.c_str());
         memcpy_s((PVOID)(info->EaName + info->EaNameLength + 1), info->EaValueLength, bytes.data(), bytes.size());
 
+        if (g_debug)
+        {
+            std::cout << hue::yellow << "Prep ZwSetEaFile buffer size " << buffer.size() << std::endl;
+            PrintHex(buffer, false);
+            std::cout << hue::reset;
+        }
+
         IO_STATUS_BLOCK ioStatus {};
         // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwseteafile
-        NTSTATUS status = ZwSetEaFile(hFile_, &ioStatus, info, sizeof(buffer));
+        NTSTATUS status = ZwSetEaFile(hFile_, &ioStatus, info, (ULONG)buffer.size());
 
+        if (g_debug && !NT_SUCCESS(status))
+        {
+            std::cout << hue::yellow << "ZwSetEaFile failed with " << std::hex << status << std::endl;
+
+            ULONG errorOffset = 0;
+            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-iocheckeabuffervalidity
+            NTSTATUS stat =
+                IoCheckEaBufferValidity((PFILE_FULL_EA_INFORMATION)info, (ULONG)buffer.size(), &errorOffset);
+            if (!NT_SUCCESS(stat))
+            {
+                std::cout << "IoCheckEaBufferValidity failed with " << std::hex << stat << std::endl;
+                std::cout << "IoCheckEaBufferValidity errorOffset " << errorOffset << std::endl;
+            }
+            std::cout << hue::reset;
+        }
         return !!NT_SUCCESS(status);
     }
 
@@ -394,6 +532,10 @@ typedef struct _FILE_FULL_EA_INFORMATION
         IO_STATUS_BLOCK ioStatus {};
 
         NTSTATUS status = ZwSetEaFile(hFile_, &ioStatus, &info, sizeof(info) + info.EaNameLength + 1);
+        if (g_debug && !NT_SUCCESS(status))
+        {
+            std::cout << hue::yellow << "ZwSetEaFile failed with " << std::hex << status << hue::reset << std::endl;
+        }
         return !!NT_SUCCESS(status);
     }
     bool ClearEa(const std::wstring& file)
@@ -446,42 +588,102 @@ private:
         IO_STATUS_BLOCK   ioStatus {};
 
         NTSTATUS status = NtOpenFile(&hFile_, (write ? (FILE_WRITE_EA | FILE_READ_EA) : FILE_READ_EA) | SYNCHRONIZE,
-            &attr, &ioStatus,
-            FILE_SHARE_WRITE | FILE_SHARE_READ, FILE_SYNCHRONOUS_IO_NONALERT);
-
+            &attr, &ioStatus, FILE_SHARE_WRITE | FILE_SHARE_READ, FILE_SYNCHRONOUS_IO_NONALERT);
+        if (g_debug && !NT_SUCCESS(status))
+        {
+            std::cout << hue::yellow << "NtOpenFile failed with " << std::hex << status << hue::reset << std::endl;
+        }
         return !!NT_SUCCESS(status);
     }
 
-    std::string removeWhitespaces(const std::string& input)
+// IoCheckEaBufferValidity from ReactOS
+// https://doxygen.reactos.org/dd/dca/ntoskrnl_2io_2iomgr_2util_8c.html#afe2c3c43295f280b2452f0111e32b452
+// https://doxygen.reactos.org/d0/d2d/GetWindowPlacement_8c_source.html
+#define ALIGN_DOWN_BY(size, align) ((ULONG_PTR)(size) & ~((ULONG_PTR)(align) - 1))
+#define ALIGN_UP_BY(size, align) (ALIGN_DOWN_BY(((ULONG_PTR)(size) + align - 1), align))
+
+    NTSTATUS
+    NTAPI
+    IoCheckEaBufferValidity(IN PFILE_FULL_EA_INFORMATION EaBuffer, IN ULONG EaLength, OUT PULONG ErrorOffset)
     {
-        std::string result = input;
-        result.erase(std::remove_if(result.begin(), result.end(), ::isspace), result.end());
-        return result;
-    }
+        ULONG                     NextEntryOffset;
+        UCHAR                     EaNameLength;
+        ULONG                     ComputedLength;
+        PFILE_FULL_EA_INFORMATION Current;
 
-    std::vector<BYTE> ParseHexValue(const std::string& value)
-    {
-        std::string v = removeWhitespaces(value);
-
-        if (v.length() % 2 != 0)
-            return {};
-
-        if (v.length() / 2 > MAX_EA_VALUE_BYTES)
-            return {};
-
-        std::vector<BYTE> bytes;
-        bytes.reserve(v.length() / 2);
-        for (size_t i = 0; i < v.length(); i += 2)
+        /* We will browse all the entries */
+        for (Current = EaBuffer;; Current = (PFILE_FULL_EA_INFORMATION)((ULONG_PTR)Current + NextEntryOffset))
         {
-            BYTE byte = (BYTE)strtol(v.substr(i, 2).c_str(), nullptr, 16);
-            bytes.push_back(byte);
+            /* Check that we have enough bits left for the current entry */
+            if (EaLength < FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName))
+            {
+                goto FailPath;
+            }
+
+            EaNameLength   = Current->EaNameLength;
+            ComputedLength = Current->EaValueLength + EaNameLength + FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + 1;
+            /* Check that we have enough bits left for storing the name and its value */
+            if (EaLength < ComputedLength)
+            {
+                goto FailPath;
+            }
+
+            /* Make sure the name is null terminated */
+            if (Current->EaName[EaNameLength] != ANSI_NULL)
+            {
+                goto FailPath;
+            }
+
+            /* Get the next entry offset */
+            NextEntryOffset = Current->NextEntryOffset;
+            /* If it's 0, it's a termination case */
+            if (NextEntryOffset == 0)
+            {
+                /* If we don't overflow! */
+                if ((LONG)(EaLength - ComputedLength) < 0)
+                {
+                    goto FailPath;
+                }
+
+                break;
+            }
+
+            /* Compare the next offset we computed with the provided one, they must match */
+            if (ALIGN_UP_BY(ComputedLength, sizeof(ULONG)) != NextEntryOffset)
+            {
+                goto FailPath;
+            }
+
+            /* Check next entry offset value is positive */
+            if ((LONG)NextEntryOffset < 0)
+            {
+                goto FailPath;
+            }
+
+            /* Compute the remaining bits */
+            EaLength -= NextEntryOffset;
+            /* We must have bits left */
+            if ((LONG)EaLength < 0)
+            {
+                goto FailPath;
+            }
+
+            /* Move to the next entry */
         }
-        return bytes;
+
+        /* If we end here, everything went OK */
+        return STATUS_SUCCESS;
+
+    FailPath:
+        /* If we end here, we failed, set failed offset */
+        *ErrorOffset = (ULONG)((ULONG_PTR)Current - (ULONG_PTR)EaBuffer);
+        return STATUS_EA_LIST_INCONSISTENT;
     }
 
     HANDLE hFile_ {INVALID_HANDLE_VALUE};
 };
 
+// Prints given EAs to the console respecting the commandline options.
 class EaPrinter
 {
 public:
@@ -491,45 +693,64 @@ public:
 
     void PrintEas(std::filesystem::path path, const std::vector<std::pair<std::string, std::vector<BYTE>>>& eas)
     {
-        bool viewFile = eaConf_.ViewFile || eas.size() > 1;
-        auto filename = path.filename().wstring();
+        bool         printFile = eaConf_.ViewFile || eaConf_.Files.size() > 1;
+        std::wstring filename;
+
+        if (printFile)
+            filename = path.filename().wstring();
+
+        bool printName  = eaConf_.Command == EaConf::Cmd::List || eaConf_.Long;
+        bool printValue = eaConf_.Command == EaConf::Cmd::Print || eaConf_.Long;
 
         for (const auto& ea : eas)
         {
-            if (viewFile)
+            if (printFile)
                 std::wcout << filename << L": ";
 
-            std::cout << ea.first << ": ";
-            if (eaConf_.Hex || AnyNonPrintable(ea.second))
+            if (printName)
             {
-                PrintHex(ea.second);
+                // Explicitly use the wide string output stream to avoid any conversion issues
+                // as the EA name is ASCII, not UTF-8.
+                std::wcout << AsciiToWide(ea.first);
             }
-            else if (eaConf_.Unicode)
+
+            if (printValue)
             {
-                std::wcout << std::wstring((wchar_t*)ea.second.data(), ea.second.size() / 2);
-            }
-            else
-            {
-                std::cout << std::string((char*)ea.second.data(), ea.second.size());
+                if (printName)
+                    std::cout << ": ";
+
+                if (eaConf_.Hex || AnyNonPrintable(ea.second))
+                {
+                    PrintHex(ea.second, printName);
+                }
+                else if (eaConf_.Unicode)
+                {
+                    std::wcout << std::wstring((wchar_t*)ea.second.data(), ea.second.size() / 2);
+                }
+                else
+                {
+                    std::cout << std::string((char*)ea.second.data(), ea.second.size());
+                }
             }
             std::cout << std::endl;
         }
     }
 
 private:
-    void PrintHex(const std::vector<BYTE>& bytes)
-    {
-        for (const auto& b : bytes)
-        {
-            std::cout << std::hex << b;
-        }
-    }
-
     bool AnyNonPrintable(const std::vector<BYTE>& bytes)
     {
         if (eaConf_.Unicode)
         {
-            for (size_t i = 0; i < bytes.size(); i += 2)
+            // A possible valid wide string shall be even in size and at least 4 bytes long.
+            if (bytes.size() % 2 != 0 || bytes.size() < 4)
+                true;
+
+            // Shall end in a 0 termination.
+            if (bytes[bytes.size() - 2] != 0 || bytes[bytes.size() - 1] != 0)
+                return true;
+
+            // Exclude the terminating 0
+            for (size_t i = 0; i < bytes.size() - 2; i += 2)
             {
                 wchar_t c = *(wchar_t*)&bytes[i];
                 if (!iswprint(c))
@@ -538,9 +759,19 @@ private:
         }
         else
         {
-            for (const auto& b : bytes)
+            // A possible valid narrow string shall be at least 2 bytes long.
+            if (bytes.size() < 2)
+                true;
+
+            // Shall end in a 0 termination.
+            if (bytes[bytes.size() - 1] != 0)
+                return true;
+
+            // Exclude the terminating 0
+            for (size_t i = 0; i < bytes.size() - 1; ++i)
             {
-                if (!isprint(b))
+                char c = *(char*)&bytes[i];
+                if (!isprint(c))
                     return true;
             }
         }
@@ -550,6 +781,7 @@ private:
     EaConf eaConf_;
 };
 
+// Executes commands based on the parsed commandline parameters.
 class EaWorker
 {
 public:
@@ -666,6 +898,8 @@ void worker(const int argc, const wchar_t* const* const argv)
     cmdl.parse(
         WideArgv(argc, argv)(), argh::parser::PREFER_FLAG_FOR_UNREG_OPTION | argh::parser::SINGLE_DASH_IS_MULTIFLAG);
 
+    g_debug = cmdl[{"--debug"}];
+
     if (cmdl[{"-h", "--help"}])
     {
         g_pgm->Usage();
@@ -701,11 +935,11 @@ int wmain(const int argc, const wchar_t* const* const argv)
     }
     catch (const std::exception& e)
     {
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << hue::red << "Error: " << e.what() << hue::reset << std::endl;
     }
     catch (...)
     {
-        std::cerr << "Unknown error" << std::endl;
+        std::cerr << hue::red << "Unknown error" << hue::reset << std::endl;
     }
 
     return 0;

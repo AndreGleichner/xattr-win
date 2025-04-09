@@ -44,3 +44,49 @@ inline std::string WideToAscii(const std::wstring_view& wideStr)
     return str;
 }
 
+inline std::wstring AsciiToWide(const std::string_view& asciiStr)
+{
+    std::wstring str;
+    str.reserve(asciiStr.size());
+    for (const char c : asciiStr)
+    {
+        str.push_back(static_cast<wchar_t>(c));
+    }
+    return str;
+}
+
+inline std::string RemoveWhitespaces(const std::string& input)
+{
+    std::string result = input;
+    result.erase(std::remove_if(result.begin(), result.end(), ::isspace), result.end());
+    return result;
+}
+
+// Convert a hex string to a byte array, example input: "01 02 03" or "010203" or "aa AA aA Aa"
+inline std::vector<BYTE> ParseHexValue(const std::string& value, size_t maxByteCount)
+{
+    std::string v = RemoveWhitespaces(value);
+
+    if (v.length() % 2 != 0)
+        return {};
+
+    if (v.length() / 2 > maxByteCount)
+        return {};
+
+    std::vector<BYTE> bytes;
+    bytes.reserve(v.length() / 2);
+    for (size_t i = 0; i < v.length(); i += 2)
+    {
+        try
+        {
+            std::string s(v.data() + i, 2);
+            BYTE        b = (BYTE)std::stoul(s, nullptr, 16);
+            bytes.push_back(b);
+        }
+        catch (const std::exception&)
+        {
+            return {};
+        }
+    }
+    return bytes;
+}

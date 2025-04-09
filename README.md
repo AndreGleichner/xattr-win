@@ -3,19 +3,19 @@ Overview
 Extended attributes for Windows — like xattr on Linux and macOS.
 
 On Windows there's no default commandline tool to write or delete EAs.
-To read EAs you may use: fsutil file queryEA <path>
+To read EAs you may use: `fsutil file queryEA <path>`
 
 Name requirements
 -----------------
 Unlike in Linux, where EA names require a specific name prefix like "user." or "system." in Windows names have the following restrictions:
 It MUST be less than 255 8-bit ASCII characters and MUST NOT contain any of the following characters:
-ASCII values 0x00 - 0x1F, \ / : * ? " < > | , + = [ ] ;
-Beside that, in Windows user mode you'll NOT be able to create an EA name starting with "$KERNEL.".
+`ASCII values 0x00 - 0x1F, \ / : * ? " < > | , + = [ ] ;`
+Beside that, in Windows user mode you'll NOT be able to create an EA name starting with `$KERNEL.`.
 Names of EAs in Windows will be converted to all-uppercase upon creation automatically.
 
 Value requirements
 ------------------
-The EA value may just be a string, but may be any byte sequence.
+The EA value may just be a string, but may be any byte sequence up to a total length of 65535 bytes.
 
 WSL2 Linux:
 -----------
@@ -24,28 +24,38 @@ EAs are NOT propagated to the other side, neither from WSL2-Linux to Windows, no
 Usage
 -----
 Similar to the commands of the Linux xattr, the following arguments may be supplied:
-(See https://man.cx/xattr)
 
 List only the names of all EAs on the given file(s):
+```
 xattr [-lrvx] file [ file ... ]
-
-Print value of EA ea_name on the given file(s):
+```
+Print only the value of EA ea_name on the given file(s):
+```
 xattr -p [-lrvx] ea_name file [ file ... ]
-
+```
 Write the value of the EA ea_name to ea_value:
-xattr -w [-rux] ea_name ea_value file [ file ... ]
-
+```
+xattr -w [-frux] ea_name ea_value file [ file ... ]
+    (No output on success, error messages on stderr.)
+```
 Delete the EA ea_name from file(s):
-xattr -d [-rv] ea_name file [ file ... ]
-
+```
+xattr -d [-r] ea_name file [ file ... ]
+    (No output on success, error messages on stderr.)
+```
 Clear all EA from the given file(s):
-xattr -c [-rv] file [ file ... ]
-
+```
+xattr -c [-r] file [ file ... ]
+    (No output on success, error messages on stderr.)
+```
 Options:
 
-    -c  CLear all Atrributes.
+    -c  Clear all Attributes.
 
     -d  Delete the given attribute.
+
+    -f  Write content of a given file as EA value. Max size is 65565 bytes.
+        Use with -w option. This option can not be combined with -x or -u.
 
     -h  Help.
 
@@ -72,6 +82,8 @@ Options:
     -x  Force the attribute value to be displayed in the hexadecimal representation.
         This option can not be combined with -u.
 
+    --debug  Print debug information to stdout.
+
 One or more files or directories may be specified on the command line.
 
 For the first two forms of the command, if there is more than one file, 
@@ -85,7 +97,7 @@ Specifying the -x option causes xattr to expect the input in hexadecimal (whites
 The hex bytes must be enclosed in "".
 
 xattr exits with 0 on success.
-On error it exits with a non-zero value and prints a error message on stderr.
+On error it exits with a non-zero value and prints an error message on stderr.
 
 Misc
 ----

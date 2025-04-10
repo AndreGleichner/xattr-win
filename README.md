@@ -27,11 +27,11 @@ Similar to the commands of the Linux xattr, the following arguments may be suppl
 
 List only the names of all EAs on the given file(s):
 ```
-xattr [-klrvx] file [ file ... ]
+xattr [-eklrvx] file [ file ... ]
 ```
 Print only the value of EA ea_name on the given file(s):
 ```
-xattr -p [-klrvx] ea_name file [ file ... ]
+xattr -p [-eklrvx] ea_name file [ file ... ]
 ```
 Write the value of the EA ea_name to ea_value:
 ```
@@ -53,6 +53,8 @@ Options:
     -c  Clear all Attributes.
 
     -d  Delete the given attribute.
+
+    -e  Expand / extract / examine well known EAs.
 
     -f  Write content of a given file as EA value. Max size is 65565 bytes.
         Use with -w option. This option can not be combined with -x or -u.
@@ -124,4 +126,6 @@ https://superuser.com/questions/396692/what-are-these-extended-attributes-eas-in
 https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/Studies/Smart_App_Control/Studie_Smart_App_Control.pdf?__blob=publicationFile&v=2
 https://posts.specterops.io/documenting-and-attacking-a-windows-defender-application-control-feature-the-hard-way-a-case-73dd1e11be3a
 https://github.com/gabriellandau/ExtendedAttributeIpecac
+https://superuser.com/questions/396692/what-are-these-extended-attributes-eas-in-the-files-in-windows-8
+
 

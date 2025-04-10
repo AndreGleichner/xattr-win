@@ -75,11 +75,11 @@ Similar to the commands of the Linux xattr, the following arguments may be suppl
 
 List only the names of all EAs on the given file(s):
 ```
-xattr [-klrvx] file [ file ... ]
+xattr [-eklrvx] file [ file ... ]
 ```
 Print only the value of EA ea_name on the given file(s):
 ```
-xattr -p [-klrvx] ea_name file [ file ... ]
+xattr -p [-eklrvx] ea_name file [ file ... ]
 ```
 Write the value of the EA ea_name to ea_value:
 ```
@@ -101,6 +101,8 @@ Options:
     -c  Clear all Attributes.
 
     -d  Delete the given attribute.
+
+    -e  Expand / extract / examine well known EAs.
 
     -f  Write content of a given file as EA value. Max size is 65565 bytes.
         Use with -w option. This option can not be combined with -x or -u.
@@ -315,13 +317,15 @@ struct EaConf
                     Files.push_back(UTF8ToWide(file));
             }
 
+            Expand        = cmdl[{"-e"}];
+            Hex           = cmdl[{"-x"}];
+            KeepGoing     = cmdl[{"-k"}];
             Long          = cmdl[{"-l"}];
             Recursive     = cmdl[{"-r"}];
-            ViewFile      = cmdl[{"-v"}];
-            Hex           = cmdl[{"-x"}];
             Unicode       = cmdl[{"-u"}];
-            KeepGoing     = cmdl[{"-k"}];
             ValueFromFile = cmdl[{"-f"}];
+            ViewFile      = cmdl[{"-v"}];
+
             cmdl("m", 1) >> MaxDepth;
         }
 
@@ -333,14 +337,16 @@ struct EaConf
     std::string EaName;
     std::string EaValue;
 
+    bool Expand {false};
+    bool Hex {false};
     bool KeepGoing {false};
     bool Long {false};
     bool Recursive {false};
     bool Unicode {false};
     bool ValueFromFile {false};
     bool ViewFile {false};
-    bool Hex {false};
-    int  MaxDepth {1};
+
+    int MaxDepth {1};
 
     std::vector<std::wstring> Files;
 };
@@ -817,7 +823,26 @@ public:
                 if (printName)
                     std::cout << ": ";
 
-                if (eaConf_.Hex || AnyNonPrintable(ea.second))
+                // Expand well-known EAs
+                if (eaConf_.Expand && ea.first == "$CI.CATALOGHINT" && ea.second.size() > 4)
+                {
+                    // clang-format off
+                    /*
+                    * Sample from ntdll.dll
+0000:  01 00 5a 00 4d 69 63 72  6f 73 6f 66 74 2d 57 69  ..Z.Microsoft-Wi
+0010:  6e 64 6f 77 73 2d 4b 65  72 6e 65 6c 2d 50 61 63  ndows-Kernel-Pac
+0020:  6b 61 67 65 2d 4e 74 64  6c 6c 2d 50 61 63 6b 61  kage-Ntdll-Packa
+0030:  67 65 7e 33 31 62 66 33  38 35 36 61 64 33 36 34  ge~31bf3856ad364
+0040:  65 33 35 7e 61 6d 64 36  34 7e 7e 31 30 2e 30 2e  e35~amd64~~10.0.
+0050:  32 36 31 30 30 2e 33 33  32 33 2e 63 61 74        26100.3323.cat
+                    */
+                    // clang-format on
+
+                    // No idea what the first 4 bytes are, but the rest is a catalog file name to speed up signature lookup.
+                    DWORD d = *(DWORD*)ea.second.data();
+                    std::cout << std::hex << d << " " << std::string((char*)ea.second.data() + 4, ea.second.size() - 4);
+                }
+                else if (eaConf_.Hex || AnyNonPrintable(ea.second))
                 {
                     PrintHex(ea.second, printName);
                 }
@@ -835,8 +860,11 @@ public:
     }
 
 private:
-    bool AnyNonPrintable(const std::vector<BYTE>& bytes)
+    bool AnyNonPrintable(const std::vector<BYTE>& bytes, int startOffset = 0)
     {
+        if (startOffset >= (int)bytes.size())
+            return false;
+
         if (eaConf_.Unicode)
         {
             // A possible valid wide string shall be even in size and at least 4 bytes long.

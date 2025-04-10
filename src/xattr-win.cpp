@@ -1,37 +1,9 @@
 #include "pch.h"
 
-#include "argh.h"
+#include "argh.h"           // https://github.com/adishavit/argh
 #include <colorconsole.hpp> // https://github.com/aafulei/color-console
 
 #pragma comment(lib, "ntdll")
-
-// clang-format off
-/*
-
-Status code                                     Meaning
--- WARNING --
-STATUS_BUFFER_OVERFLOW          0x80000005      The output buffer was filled before all of the EA data could be returned. Only complete FILE_FULL_EA_INFORMATION structures are returned.
-STATUS_NO_MORE_EAS              0x80000012      No more extended attributes (EAs) were found for the file.
-STATUS_INVALID_EA_NAME          0x80000013      The specified extended attribute (EA) name contains at least one illegal character.
-                                                An array of 8-bit ASCII characters that contains the extended attribute name followed by a single terminating null character byte.
-                                                The EaName MUST be less than 255 characters and MUST NOT contain any of the following characters:
-                                                ASCII values 0x00 - 0x1F, \ / : * ? " < > | , + = [ ] ;
-STATUS_EA_LIST_INCONSISTENT     0x80000014      The extended attribute (EA) list is inconsistent.
-STATUS_INVALID_EA_FLAG          0x80000015      An invalid extended attribute (EA) flag was set.
-
--- ERROR --
-STATUS_INVALID_DEVICE_REQUEST   0xC0000010      The specified request is not a valid operation for the target device.
-STATUS_ACCESS_DENIED            0xC0000022      A process has requested access to an object, but has not been granted those access rights.
-STATUS_BUFFER_TOO_SMALL         0xC0000023      The buffer is too small to contain the entry. No information has been written to the buffer.
-STATUS_EAS_NOT_SUPPORTED        0xC000004F      An operation involving EAs failed because the file system does not support EAs.
-STATUS_EA_TOO_LARGE             0xC0000050      An EA operation failed because EA set is too large.
-STATUS_NONEXISTENT_EA_ENTRY     0xC0000051      An EA operation failed because the name or EA index is invalid.
-STATUS_NO_EAS_ON_FILE           0xC0000052      The file for which EAs were requested has no EAs.
-STATUS_EA_CORRUPT_ERROR         0xC0000053      The EA is corrupt and non-readable.
-STATUS_INSUFFICIENT_RESOURCES   0xC000009A      Insufficient system resources exist to complete the API.
-
-*/
-// clang-format on
 
 // Set and restore the console codepage to UTF-8.
 class Codepage
@@ -103,25 +75,25 @@ Similar to the commands of the Linux xattr, the following arguments may be suppl
 
 List only the names of all EAs on the given file(s):
 ```
-xattr [-lrvx] file [ file ... ]
+xattr [-klrvx] file [ file ... ]
 ```
 Print only the value of EA ea_name on the given file(s):
 ```
-xattr -p [-lrvx] ea_name file [ file ... ]
+xattr -p [-klrvx] ea_name file [ file ... ]
 ```
 Write the value of the EA ea_name to ea_value:
 ```
-xattr -w [-frux] ea_name ea_value file [ file ... ]
+xattr -w [-fkrux] ea_name ea_value file [ file ... ]
     (No output on success, error messages on stderr.)
 ```
 Delete the EA ea_name from file(s):
 ```
-xattr -d [-r] ea_name file [ file ... ]
+xattr -d [-kr] ea_name file [ file ... ]
     (No output on success, error messages on stderr.)
 ```
 Clear all EA from the given file(s):
 ```
-xattr -c [-r] file [ file ... ]
+xattr -c [-kr] file [ file ... ]
     (No output on success, error messages on stderr.)
 ```
 Options:
@@ -142,6 +114,12 @@ Options:
         values, respectively. The -l option causes both the attribute names and corresponding
         values to be displayed. For hex display of values, the output is preceeded with the hex
         offset values and followed by ASCII display, enclosed by '|'.
+
+    -m  Max-depth for recursive processing. Default is 1. 
+        0 => only the given directory, 
+        1 => only the files in the given directory, 
+        2 => files in the given directory and their subdirectories, etc.
+        This option is only valid with -r option.
 
     -p  Print the value associated with the given attribute.
 
@@ -344,6 +322,7 @@ struct EaConf
             Unicode       = cmdl[{"-u"}];
             KeepGoing     = cmdl[{"-k"}];
             ValueFromFile = cmdl[{"-f"}];
+            cmdl("m", 1) >> MaxDepth;
         }
 
         return Command != Cmd::Invalid;
@@ -351,15 +330,18 @@ struct EaConf
 
     Cmd Command {Cmd::Invalid};
     // 8-bit ASCII, excluding invalid EA chars 0x00 - 0x1F, \ / : * ? " < > | , + = [ ] ;
-    std::string               EaName;
-    std::string               EaValue;
-    bool                      Long {false};
-    bool                      Recursive {false};
-    bool                      ViewFile {false};
-    bool                      Hex {false};
-    bool                      Unicode {false};
-    bool                      KeepGoing {false};
-    bool                      ValueFromFile {false};
+    std::string EaName;
+    std::string EaValue;
+
+    bool KeepGoing {false};
+    bool Long {false};
+    bool Recursive {false};
+    bool Unicode {false};
+    bool ValueFromFile {false};
+    bool ViewFile {false};
+    bool Hex {false};
+    int  MaxDepth {1};
+
     std::vector<std::wstring> Files;
 };
 
@@ -420,6 +402,31 @@ public:
             NtClose(hFile_);
     }
 
+    // clang-format off
+    /*
+    Status code                                     Meaning
+    -- WARNING --
+    STATUS_BUFFER_OVERFLOW          0x80000005      The output buffer was filled before all of the EA data could be returned. Only complete FILE_FULL_EA_INFORMATION structures are returned.
+    STATUS_NO_MORE_EAS              0x80000012      No more extended attributes (EAs) were found for the file.
+    STATUS_INVALID_EA_NAME          0x80000013      The specified extended attribute (EA) name contains at least one illegal character.
+                                                    An array of 8-bit ASCII characters that contains the extended attribute name followed by a single terminating null character byte.
+                                                    The EaName MUST be less than 255 characters and MUST NOT contain any of the following characters:
+                                                    ASCII values 0x00 - 0x1F, \ / : * ? " < > | , + = [ ] ;
+    STATUS_EA_LIST_INCONSISTENT     0x80000014      The extended attribute (EA) list is inconsistent.
+    STATUS_INVALID_EA_FLAG          0x80000015      An invalid extended attribute (EA) flag was set.
+
+    -- ERROR --
+    STATUS_INVALID_DEVICE_REQUEST   0xC0000010      The specified request is not a valid operation for the target device.
+    STATUS_ACCESS_DENIED            0xC0000022      A process has requested access to an object, but has not been granted those access rights.
+    STATUS_BUFFER_TOO_SMALL         0xC0000023      The buffer is too small to contain the entry. No information has been written to the buffer.
+    STATUS_EAS_NOT_SUPPORTED        0xC000004F      An operation involving EAs failed because the file system does not support EAs.
+    STATUS_EA_TOO_LARGE             0xC0000050      An EA operation failed because EA set is too large.
+    STATUS_NONEXISTENT_EA_ENTRY     0xC0000051      An EA operation failed because the name or EA index is invalid.
+    STATUS_NO_EAS_ON_FILE           0xC0000052      The file for which EAs were requested has no EAs.
+    STATUS_EA_CORRUPT_ERROR         0xC0000053      The EA is corrupt and non-readable.
+    STATUS_INSUFFICIENT_RESOURCES   0xC000009A      Insufficient system resources exist to complete the API.
+    */
+    // clang-format on
 
     bool WriteEa(const std::wstring& file, const EaConf& eaConf)
     {
@@ -615,6 +622,8 @@ typedef struct _FILE_FULL_EA_INFORMATION
         }
         return !!NT_SUCCESS(status);
     }
+
+    // Delete all EAs on-by-one.
     bool ClearEa(const std::wstring& file)
     {
         if (!Open(file, true))
@@ -654,7 +663,11 @@ private:
     bool Open(const std::wstring& file, bool write)
     {
         if (hFile_ != INVALID_HANDLE_VALUE)
+        {
+            if (file_ != file)
+                g_pgm->Exit(1, L"File handle already open for another file. Program logic issue...");
             return true;
+        }
 
         auto f = CanonicalPath(file);
 
@@ -670,6 +683,10 @@ private:
         {
             std::cout << hue::yellow << "NtOpenFile failed with " << std::hex << status << hue::reset << std::endl;
         }
+
+        if (NT_SUCCESS(status))
+            file_ = file;
+
         return !!NT_SUCCESS(status);
     }
 
@@ -757,7 +774,8 @@ private:
         return STATUS_EA_LIST_INCONSISTENT;
     }
 
-    HANDLE hFile_ {INVALID_HANDLE_VALUE};
+    HANDLE       hFile_ {INVALID_HANDLE_VALUE};
+    std::wstring file_;
 };
 
 // Prints given EAs to the console respecting the commandline options.
@@ -770,11 +788,14 @@ public:
 
     void PrintEas(std::filesystem::path path, const std::vector<std::pair<std::string, std::vector<BYTE>>>& eas)
     {
-        bool         printFile = eaConf_.ViewFile || eaConf_.Files.size() > 1;
+        if (eas.empty())
+            return;
+
+        bool         printFile = eaConf_.ViewFile || eaConf_.Recursive || eaConf_.Files.size() > 1;
         std::wstring filename;
 
         if (printFile)
-            filename = path.filename().wstring();
+            filename = path.wstring();
 
         bool printName  = eaConf_.Command == EaConf::Cmd::List || eaConf_.Long;
         bool printValue = eaConf_.Command == EaConf::Cmd::Print || eaConf_.Long;
@@ -868,101 +889,118 @@ public:
 
     void Exceute()
     {
-        switch (eaConf_.Command)
-        {
-            case EaConf::Cmd::List:
-                ExcecuteListOrPrint();
-                break;
-            case EaConf::Cmd::Print:
-                ExcecuteListOrPrint();
-                break;
-            case EaConf::Cmd::Write:
-                ExcecuteWrite();
-                break;
-            case EaConf::Cmd::Delete:
-                ExcecuteDelete();
-                break;
-            case EaConf::Cmd::Clear:
-                ExcecuteClear();
-                break;
-            default:
-                break;
-        }
-    }
-
-private:
-    void ExcecuteListOrPrint()
-    {
-        NativeFile file;
         for (const auto& f : eaConf_.Files)
         {
-            auto path = std::filesystem::path(f);
+            auto            path = std::filesystem::path(f);
+            std::error_code ec;
 
-            if (std::filesystem::is_directory(path))
+            if (std::filesystem::is_directory(path, ec) && !ec)
             {
                 if (eaConf_.Recursive)
                 {
                     const std::filesystem::directory_options dir_opt =
                         std::filesystem::directory_options::skip_permission_denied;
 
-                    for (const auto& entry : std::filesystem::recursive_directory_iterator(path, dir_opt))
+                    for (auto it = std::filesystem::recursive_directory_iterator(path, dir_opt);
+                        it != std::filesystem::recursive_directory_iterator(); ++it)
                     {
-                        const auto eas = file.ReadEa(entry.path(), eaConf_.EaName);
-                        eaPrinter_.PrintEas(entry.path(), eas);
+                        if (it->is_directory(ec) && !ec)
+                        {
+                            if (g_debug)
+                            {
+                                std::cout << hue::yellow << std::string(it.depth(), ' ') << it.depth() << " : "
+                                          << WideToUTF8(it->path().wstring()) << hue::reset << std::endl;
+                            }
+                            if (it.depth() >= eaConf_.MaxDepth)
+                                it.disable_recursion_pending(); // don't recursively enter this directory
+                        }
+                        else if (it->is_regular_file(ec) && !ec)
+                        {
+                            if (g_debug)
+                            {
+                                std::cout << hue::green << std::string(it.depth(), ' ') << it.depth() << " : "
+                                          << WideToUTF8(it->path().wstring()) << hue::reset << std::endl;
+                            }
+                            // Certain paths like e.g. C:\Windows\MEMORY.DMP are failing the relative() call.
+                            // So call relative() first and don't ReadEa(), as it probably will fail anyhow.
+                            auto relative_path = std::filesystem::relative(it->path(), path, ec);
+                            if (!ec)
+                            {
+                                if (!ExceuteCommand(it->path().wstring(), relative_path) && !eaConf_.KeepGoing)
+                                {
+                                    g_pgm->Exit(1, L"Failed to excecute command on file: " + it->path().wstring());
+                                    // unreachable
+                                }
+                            }
+                            else
+                            {
+                                if (g_debug)
+                                {
+                                    std::cout << hue::red << std::string(it.depth(), ' ')
+                                              << "Failed to get relative path: " << ec << hue::reset << std::endl;
+                                }
+                            }
+                        }
                     }
                 }
                 else
                 {
-                    const auto eas = file.ReadEa(f, eaConf_.EaName);
-                    eaPrinter_.PrintEas(path, eas);
+                    if (!ExceuteCommand(f, path) && !eaConf_.KeepGoing)
+                    {
+                        g_pgm->Exit(1, L"Failed to excecute command on directory: " + f);
+                        // unreachable
+                    }
                 }
             }
             else
             {
-                const auto eas = file.ReadEa(f, eaConf_.EaName);
-                eaPrinter_.PrintEas(path, eas);
+                if (!ExceuteCommand(f, path) && !eaConf_.KeepGoing)
+                {
+                    g_pgm->Exit(1, L"Failed to excecute command on file: " + f);
+                    // unreachable
+                }
             }
         }
     }
 
-    void ExcecuteWrite()
+private:
+    bool ExceuteCommand(const std::wstring& path, const std::filesystem::path& displayPath)
     {
-        NativeFile file;
-        for (const auto& f : eaConf_.Files)
+        switch (eaConf_.Command)
         {
-            if (!file.WriteEa(f, eaConf_) && !eaConf_.KeepGoing)
+            case EaConf::Cmd::List:
             {
-                g_pgm->Exit(1, L"Failed to write EA to file: " + f);
-                // unreachable
+                NativeFile file;
+                const auto eas = file.ReadEa(path, eaConf_.EaName);
+                eaPrinter_.PrintEas(displayPath, eas);
+                return true;
             }
-        }
-    }
-
-    void ExcecuteDelete()
-    {
-        NativeFile file;
-        for (const auto& f : eaConf_.Files)
-        {
-            if (!file.DeleteEa(f, eaConf_.EaName) && !eaConf_.KeepGoing)
+            case EaConf::Cmd::Print:
             {
-                g_pgm->Exit(1, L"Failed to delete EA in file: " + f);
-                // unreachable
+                NativeFile file;
+                const auto eas = file.ReadEa(path, eaConf_.EaName);
+                eaPrinter_.PrintEas(displayPath, eas);
+                return true;
             }
-        }
-    }
-    void ExcecuteClear()
-    {
-        // Delete all EAs on-by-one.
-
-        NativeFile file;
-        for (const auto& f : eaConf_.Files)
-        {
-            if (!file.ClearEa(f) && !eaConf_.KeepGoing)
+            case EaConf::Cmd::Write:
             {
-                g_pgm->Exit(1, L"Failed to clear all EA in file: " + f);
-                // unreachable
+                NativeFile file;
+                return file.WriteEa(path, eaConf_);
             }
+            case EaConf::Cmd::Delete:
+            {
+                NativeFile file;
+                return file.DeleteEa(path, eaConf_.EaName);
+            }
+            case EaConf::Cmd::Clear:
+            {
+                NativeFile file;
+                return file.ClearEa(path);
+            }
+            default:
+                break;
         }
+        return false;
     }
 
     EaConf    eaConf_;

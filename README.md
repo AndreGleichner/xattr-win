@@ -27,25 +27,25 @@ Similar to the commands of the Linux xattr, the following arguments may be suppl
 
 List only the names of all EAs on the given file(s):
 ```
-xattr [-lrvx] file [ file ... ]
+xattr [-klrvx] file [ file ... ]
 ```
 Print only the value of EA ea_name on the given file(s):
 ```
-xattr -p [-lrvx] ea_name file [ file ... ]
+xattr -p [-klrvx] ea_name file [ file ... ]
 ```
 Write the value of the EA ea_name to ea_value:
 ```
-xattr -w [-frux] ea_name ea_value file [ file ... ]
+xattr -w [-fkrux] ea_name ea_value file [ file ... ]
     (No output on success, error messages on stderr.)
 ```
 Delete the EA ea_name from file(s):
 ```
-xattr -d [-r] ea_name file [ file ... ]
+xattr -d [-kr] ea_name file [ file ... ]
     (No output on success, error messages on stderr.)
 ```
 Clear all EA from the given file(s):
 ```
-xattr -c [-r] file [ file ... ]
+xattr -c [-kr] file [ file ... ]
     (No output on success, error messages on stderr.)
 ```
 Options:
@@ -66,6 +66,12 @@ Options:
         values, respectively. The -l option causes both the attribute names and corresponding
         values to be displayed. For hex display of values, the output is preceeded with the hex
         offset values and followed by ASCII display, enclosed by '|'.
+
+    -m  Max-depth for recursive processing. Default is 1. 
+        0 => only the given directory, 
+        1 => only the files in the given directory, 
+        2 => files in the given directory and their subdirectories, etc.
+        This option is only valid with -r option.
 
     -p  Print the value associated with the given attribute.
 
@@ -107,6 +113,7 @@ Run "fsutil fsinfo volumeinfo D:" to see whether EAs are supported on your volum
 
 Some EA names Windows uses by default:
 $CI.CATALOGHINT
+$KERNEL.CFDONOTCONVERT
 $KERNEL.PURGE.ESBCACHE
 $KERNEL.PURGE.APPXFICACHE
 $KERNEL.PURGE.TRUSTCLAIM

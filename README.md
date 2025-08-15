@@ -11,6 +11,8 @@ Unlike in Linux, where EA names require a specific name prefix like "user." or "
 It MUST be less than 255 8-bit ASCII characters and MUST NOT contain any of the following characters:
 `ASCII values 0x00 - 0x1F, \ / : * ? " < > | , + = [ ] ;`
 Beside that, in Windows user mode you'll NOT be able to create an EA name starting with `$KERNEL.`.
+Furthermore, EAs starting with `$KERNEL.PURGE.` are automaticall deleted by the system on every file modification. 
+See https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/kernel-extended-attributes for details.
 Names of EAs in Windows will be converted to all-uppercase upon creation automatically.
 
 Value requirements
@@ -111,21 +113,24 @@ Misc
 ----
 Although documented differently EAs are also supported on ReFS (Checked on Win11 24H2):
 https://learn.microsoft.com/en-us/windows-server/storage/refs/refs-overview
+
 Run "fsutil fsinfo volumeinfo D:" to see whether EAs are supported on your volume.
 
-Some EA names Windows uses by default:
-$CI.CATALOGHINT
-$KERNEL.CFDONOTCONVERT
-$KERNEL.PURGE.ESBCACHE
-$KERNEL.PURGE.APPXFICACHE
-$KERNEL.PURGE.TRUSTCLAIM
+Some EA names Windows uses:
+- $CI.CATALOGHINT
+- $KERNEL.CFDONOTCONVERT
+- $KERNEL.PURGE.ESBCACHE
+- $KERNEL.PURGE.APPXFICACHE
+- $KERNEL.PURGE.TRUSTCLAIM
+- $KERNEL.PURGE.SEC.FILESENSITIVITY
+- $KERNEL.PURGE.SEC.FILEHASH
 
 Some background on various EA usages:
-https://posts.specterops.io/host-based-threat-modeling-indicator-design-a9dbbb53d5ea
-https://superuser.com/questions/396692/what-are-these-extended-attributes-eas-in-the-files-in-windows-8
-https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/Studies/Smart_App_Control/Studie_Smart_App_Control.pdf?__blob=publicationFile&v=2
-https://posts.specterops.io/documenting-and-attacking-a-windows-defender-application-control-feature-the-hard-way-a-case-73dd1e11be3a
-https://github.com/gabriellandau/ExtendedAttributeIpecac
-https://superuser.com/questions/396692/what-are-these-extended-attributes-eas-in-the-files-in-windows-8
+- https://posts.specterops.io/host-based-threat-modeling-indicator-design-a9dbbb53d5ea
+- https://superuser.com/questions/396692/what-are-these-extended-attributes-eas-in-the-files-in-windows-8
+- https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/Studies/Smart_App_Control/Studie_Smart_App_Control.pdf?__blob=publicationFile&v=2
+- https://posts.specterops.io/documenting-and-attacking-a-windows-defender-application-control-feature-the-hard-way-a-case-73dd1e11be3a
+- https://github.com/gabriellandau/ExtendedAttributeIpecac
+- https://superuser.com/questions/396692/what-are-these-extended-attributes-eas-in-the-files-in-windows-8
 
 

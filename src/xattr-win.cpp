@@ -37,7 +37,7 @@ public:
     }
 };
 
-// Control livetime of the program and cleanup.
+// Control lifetime of the program and cleanup.
 class Program
 {
 public:
@@ -104,7 +104,7 @@ Options:
 
     -e  Expand / extract / examine well known EAs.
 
-    -f  Write content of a given file as EA value. Max size is 65565 bytes.
+    -f  Write content of a given file as EA value. Max size is 65535 bytes.
         Use with -w option. This option can not be combined with -x or -u.
 
     -h  Help.
@@ -114,7 +114,7 @@ Options:
 
     -l  By default, the first two command forms either display just the attribute names or
         values, respectively. The -l option causes both the attribute names and corresponding
-        values to be displayed. For hex display of values, the output is preceeded with the hex
+        values to be displayed. For hex display of values, the output is preceded with the hex
         offset values and followed by ASCII display, enclosed by '|'.
 
     -m  Max-depth for recursive processing. Default is 1. 
@@ -293,7 +293,7 @@ struct EaConf
 
             if (hasInvalidChars)
             {
-                g_pgm->Exit(1, L"EA name hat invalid characters.");
+                g_pgm->Exit(1, L"EA name has invalid characters.");
                 // unreachable
                 return false;
             }
@@ -915,7 +915,7 @@ public:
     {
     }
 
-    void Exceute()
+    void Execute()
     {
         for (const auto& f : eaConf_.Files)
         {
@@ -954,9 +954,9 @@ public:
                             auto relative_path = std::filesystem::relative(it->path(), path, ec);
                             if (!ec)
                             {
-                                if (!ExceuteCommand(it->path().wstring(), relative_path) && !eaConf_.KeepGoing)
+                                if (!ExecuteCommand(it->path().wstring(), relative_path) && !eaConf_.KeepGoing)
                                 {
-                                    g_pgm->Exit(1, L"Failed to excecute command on file: " + it->path().wstring());
+                                    g_pgm->Exit(1, L"Failed to execute command on file: " + it->path().wstring());
                                     // unreachable
                                 }
                             }
@@ -973,18 +973,18 @@ public:
                 }
                 else
                 {
-                    if (!ExceuteCommand(f, path) && !eaConf_.KeepGoing)
+                    if (!ExecuteCommand(f, path) && !eaConf_.KeepGoing)
                     {
-                        g_pgm->Exit(1, L"Failed to excecute command on directory: " + f);
+                        g_pgm->Exit(1, L"Failed to execute command on directory: " + f);
                         // unreachable
                     }
                 }
             }
             else
             {
-                if (!ExceuteCommand(f, path) && !eaConf_.KeepGoing)
+                if (!ExecuteCommand(f, path) && !eaConf_.KeepGoing)
                 {
-                    g_pgm->Exit(1, L"Failed to excecute command on file: " + f);
+                    g_pgm->Exit(1, L"Failed to execute command on file: " + f);
                     // unreachable
                 }
             }
@@ -992,7 +992,7 @@ public:
     }
 
 private:
-    bool ExceuteCommand(const std::wstring& path, const std::filesystem::path& displayPath)
+    bool ExecuteCommand(const std::wstring& path, const std::filesystem::path& displayPath)
     {
         switch (eaConf_.Command)
         {
@@ -1058,7 +1058,7 @@ void worker(const int argc, const wchar_t* const* const argv)
     }
 
     EaWorker eaWorker(eaConf);
-    eaWorker.Exceute();
+    eaWorker.Execute();
 }
 
 int wmain(const int argc, const wchar_t* const* const argv)

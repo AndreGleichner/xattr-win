@@ -58,7 +58,7 @@ Options:
 
     -e  Expand / extract / examine well known EAs.
 
-    -f  Write content of a given file as EA value. Max size is 65565 bytes.
+    -f  Write content of a given file as EA value. Max size is 65535 bytes.
         Use with -w option. This option can not be combined with -x or -u.
 
     -h  Help.
@@ -68,7 +68,7 @@ Options:
 
     -l  By default, the first two command forms either display just the attribute names or
         values, respectively. The -l option causes both the attribute names and corresponding
-        values to be displayed. For hex display of values, the output is preceeded with the hex
+        values to be displayed. For hex display of values, the output is preceded with the hex
         offset values and followed by ASCII display, enclosed by '|'.
 
     -m  Max-depth for recursive processing. Default is 1. 

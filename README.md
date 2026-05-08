@@ -11,7 +11,7 @@ Unlike in Linux, where EA names require a specific name prefix like "user." or "
 It MUST be less than 255 8-bit ASCII characters and MUST NOT contain any of the following characters:
 `ASCII values 0x00 - 0x1F, \ / : * ? " < > | , + = [ ] ;`
 Beside that, in Windows user mode you'll NOT be able to create an EA name starting with `$KERNEL.`.
-Furthermore, EAs starting with `$KERNEL.PURGE.` are automaticall deleted by the system on every file modification. 
+Furthermore, EAs starting with `$KERNEL.PURGE.` are automatically deleted by the system on every file modification. 
 See https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/kernel-extended-attributes for details.
 Names of EAs in Windows will be converted to all-uppercase upon creation automatically.
 

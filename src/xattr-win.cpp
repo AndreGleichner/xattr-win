@@ -47,7 +47,7 @@ public:
     }
     ~Program()
     {
-        inCtor_ = true;
+        inDtor_ = true;
         Exit(0);
     }
 
@@ -64,7 +64,7 @@ public:
         fflush(nullptr);
         codepage_.reset();
 
-        if (!inCtor_)
+        if (!inDtor_)
             throw ExitProgram(exit_code);
     }
 
@@ -161,7 +161,7 @@ private:
     std::string               name_;
     std::unique_ptr<Codepage> codepage_;
     bool                      exited_ {false};
-    bool                      inCtor_ {false};
+    bool                      inDtor_ {false};
 };
 
 std::unique_ptr<Program> g_pgm;

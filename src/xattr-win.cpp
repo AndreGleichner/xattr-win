@@ -74,28 +74,23 @@ public:
 Similar to the commands of the Linux xattr, the following arguments may be supplied:
 
 List only the names of all EAs on the given file(s):
-```
 xattr [-eklrvx] file [ file ... ]
-```
+
 Print only the value of EA ea_name on the given file(s):
-```
 xattr -p [-eklrvx] ea_name file [ file ... ]
-```
+
 Write the value of the EA ea_name to ea_value:
-```
 xattr -w [-fkrux] ea_name ea_value file [ file ... ]
     (No output on success, error messages on stderr.)
-```
+
 Delete the EA ea_name from file(s):
-```
 xattr -d [-kr] ea_name file [ file ... ]
     (No output on success, error messages on stderr.)
-```
+
 Clear all EA from the given file(s):
-```
 xattr -c [-kr] file [ file ... ]
     (No output on success, error messages on stderr.)
-```
+
 Options:
 
     -c  Clear all Attributes.
@@ -401,6 +396,8 @@ class NativeFile
 {
 public:
     NativeFile() = default;
+    NativeFile(const NativeFile&) = delete;
+    NativeFile& operator=(const NativeFile&) = delete;
 
     ~NativeFile()
     {
@@ -451,8 +448,10 @@ public:
         }
         else if (eaConf.Unicode)
         {
-            bytes.resize((eaConf.EaValue.length() + 1) * sizeof(WCHAR));
-            std::copy(eaConf.EaValue.begin(), eaConf.EaValue.end(), (WCHAR*)bytes.data());
+            std::wstring wideValue = UTF8ToWide(eaConf.EaValue);
+            size_t byteCount = (wideValue.length() + 1) * sizeof(WCHAR);
+            bytes.resize(byteCount);
+            memcpy(bytes.data(), wideValue.data(), byteCount);
         }
         else if (eaConf.ValueFromFile)
         {
@@ -839,7 +838,8 @@ public:
                     // clang-format on
 
                     // No idea what the first 4 bytes are, but the rest is a catalog file name to speed up signature lookup.
-                    DWORD d = *(DWORD*)ea.second.data();
+                    DWORD d;
+                    memcpy(&d, ea.second.data(), sizeof(DWORD));
                     std::cout << std::hex << d << " " << std::string((char*)ea.second.data() + 4, ea.second.size() - 4);
                 }
                 else if (eaConf_.Hex || AnyNonPrintable(ea.second))
@@ -860,16 +860,16 @@ public:
     }
 
 private:
-    bool AnyNonPrintable(const std::vector<BYTE>& bytes, int startOffset = 0)
+    bool AnyNonPrintable(const std::vector<BYTE>& bytes)
     {
-        if (startOffset >= (int)bytes.size())
+        if (bytes.empty())
             return false;
 
         if (eaConf_.Unicode)
         {
             // A possible valid wide string shall be even in size and at least 4 bytes long.
             if (bytes.size() % 2 != 0 || bytes.size() < 4)
-                true;
+                return true;
 
             // Shall end in a 0 termination.
             if (bytes[bytes.size() - 2] != 0 || bytes[bytes.size() - 1] != 0)
@@ -878,7 +878,8 @@ private:
             // Exclude the terminating 0
             for (size_t i = 0; i < bytes.size() - 2; i += 2)
             {
-                wchar_t c = *(wchar_t*)&bytes[i];
+                wchar_t c;
+                memcpy(&c, &bytes[i], sizeof(wchar_t));
                 if (!iswprint(c))
                     return true;
             }
@@ -887,7 +888,7 @@ private:
         {
             // A possible valid narrow string shall be at least 2 bytes long.
             if (bytes.size() < 2)
-                true;
+                return true;
 
             // Shall end in a 0 termination.
             if (bytes[bytes.size() - 1] != 0)
